@@ -1,10 +1,10 @@
 package chat
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
@@ -14,35 +14,22 @@ type message struct {
 }
 
 type Room struct {
-	Name     string
+	Name     string `json:"name"`
 	upgrader websocket.Upgrader
 	msgs     chan message
 	users    map[*websocket.Conn]bool
 }
 
-type Chat struct {
-	Rooms map[string]*Room
-	l     *log.Logger
-}
+func (r *Room) MarshalJSON() ([]byte, error) {
+	type SimplifiedRoom Room
+	return json.Marshal(&struct {
+		*SimplifiedRoom
+		UserCount int `json:"count"`
+	}{
+		SimplifiedRoom: (*SimplifiedRoom)(r),
+		UserCount:      len(r.users),
+	})
 
-func NewChat(l *log.Logger) *Chat {
-
-	return &Chat{make(map[string]*Room),
-		l,
-	}
-}
-
-//the Chat type satisfies the Handler interface declared in Go's http package from the stdlib.
-func (chat *Chat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	roomName := mux.Vars(r)["roomName"]
-
-	room, exists := chat.Rooms[roomName]
-
-	if !exists {
-		room = NewRoom(roomName)
-		go room.SendMsgs()
-	}
-	room.RegisterUser(w, r)
 }
 
 func NewRoom(name string) *Room {
