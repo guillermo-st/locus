@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
@@ -17,6 +18,31 @@ type Room struct {
 	upgrader websocket.Upgrader
 	msgs     chan message
 	users    map[*websocket.Conn]bool
+}
+
+type Chat struct {
+	Rooms map[string]*Room
+	l     *log.Logger
+}
+
+func NewChat(l *log.Logger) *Chat {
+
+	return &Chat{make(map[string]*Room),
+		l,
+	}
+}
+
+//the Chat type satisfies the Handler interface declared in Go's http package from the stdlib.
+func (chat *Chat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	roomName := mux.Vars(r)["roomName"]
+
+	room, exists := chat.Rooms[roomName]
+
+	if !exists {
+		room = NewRoom(roomName)
+		go room.SendMsgs()
+	}
+	room.RegisterUser(w, r)
 }
 
 func NewRoom(name string) *Room {
@@ -44,8 +70,7 @@ func (room *Room) SendMsgs() {
 	}
 }
 
-//the Room type satisfies the Handler interface declared in Go's http package from the stdlib.
-func (room *Room) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (room *Room) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	ws, err := room.upgrader.Upgrade(w, r, nil)
 	if err != nil {
