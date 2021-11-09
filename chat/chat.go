@@ -53,21 +53,21 @@ func (room *Room) SendMsgs() {
 
 			err := client.SendJSON(&msg)
 			if err != nil {
-				room.unregisterUser(client)
+				room.unregisterClient(client)
 			}
 		}
 		room.Unlock()
 	}
 }
 
-func (room *Room) registerUser(c *Client) {
+func (room *Room) registerClient(c *Client) {
 	room.Lock()
 	defer room.Unlock()
 
 	room.clients[c] = true
 }
 
-func (room *Room) unregisterUser(c *Client) {
+func (room *Room) unregisterClient(c *Client) {
 	room.Lock()
 	defer room.Unlock()
 
@@ -76,7 +76,7 @@ func (room *Room) unregisterUser(c *Client) {
 }
 
 func (room *Room) ListenToStream(s *MsgStream, c *Client) {
-	room.registerUser(c)
+	room.registerClient(c)
 
 	for {
 		select {
@@ -84,7 +84,7 @@ func (room *Room) ListenToStream(s *MsgStream, c *Client) {
 			room.msgs <- msg
 
 		case <-s.DoneSending:
-			room.unregisterUser(c)
+			room.unregisterClient(c)
 			return
 		}
 	}

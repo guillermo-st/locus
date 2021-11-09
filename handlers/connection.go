@@ -44,51 +44,53 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 		var msg chat.Message
 
 		if err := ws.ReadJSON(&msg); err != nil {
-			log.Printf("ERROR receiving message from user %v", ws)
+			log.Printf("ERROR receiving message from client %v", ws)
 			break
 		}
 
-		roomName := msg.Room
-
 		conn.chat.Lock()
-		_, exists := conn.chat.Rooms[roomName]
+		_, exists := conn.chat.Rooms[msg.Room]
 		conn.chat.Unlock()
 
-		if exists == false {
+		if !exists {
 			cl.SendJSON(&chat.Message{
 				Action:     chat.ErrorAction,
-				Room:       roomName,
+				Room:       msg.Room,
 				Username:   msg.Username,
-				Content:    "User trying to join non-existent room",
+				Content:    "Client trying to interact with non-existent room",
 				HTTPstatus: http.StatusBadRequest,
 			})
+		} else {
+			conn.processMessage(msg, cl)
+		}
+	}
+}
+
+func (conn *Connection) processMessage(msg chat.Message, cl *chat.Client) {
+	hasJoined := cl.HasJoined(msg.Room)
+
+	switch msg.Action {
+
+	case chat.JoinAction:
+		if !hasJoined {
+			stream := chat.NewMsgStream()
+			cl.RoomStreams[msg.Room] = stream
+			conn.chat.Lock()
+			go conn.chat.Rooms[msg.Room].ListenToStream(stream, cl)
+			conn.chat.Unlock()
 		}
 
-		if exists {
-			switch msg.Action {
+	case chat.LeaveAction:
+		if hasJoined {
+			cl.RoomStreams[msg.Room].DoneSending <- true
+			close(cl.RoomStreams[msg.Room].DoneSending)
+			close(cl.RoomStreams[msg.Room].SentMsgs)
+			delete(cl.RoomStreams, msg.Room)
+		}
 
-			case chat.JoinAction:
-				if !cl.HasJoined(roomName) {
-					stream := chat.NewMsgStream()
-					cl.RoomStreams[roomName] = stream
-					conn.chat.Lock()
-					go conn.chat.Rooms[roomName].ListenToStream(stream, cl)
-					conn.chat.Unlock()
-				}
-
-			case chat.LeaveAction:
-				if cl.HasJoined(roomName) {
-					cl.RoomStreams[roomName].DoneSending <- true
-					close(cl.RoomStreams[roomName].DoneSending)
-					close(cl.RoomStreams[roomName].SentMsgs)
-					delete(cl.RoomStreams, roomName)
-				}
-
-			case chat.TalkAction:
-				if cl.HasJoined(roomName) {
-					cl.RoomStreams[roomName].SentMsgs <- msg
-				}
-			}
+	case chat.TalkAction:
+		if hasJoined {
+			cl.RoomStreams[msg.Room].SentMsgs <- msg
 		}
 	}
 }
