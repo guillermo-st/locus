@@ -18,11 +18,15 @@ func main() {
 
 	var rooms = make(map[string]*chat.Room)
 
-	//Handle routes
+	//Create handlers
 	rh := handlers.NewRooms(rooms, l)
+	ch := handlers.NewConnection(rooms, l)
 
+	//Handle routes
 	r.HandleFunc("/rooms", rh.GetRooms).Methods("GET")
 	r.HandleFunc("/rooms", rh.CreateRoom).Methods("POST")
+
+	r.HandleFunc("/ws", ch.ListenToWs)
 
 	http.ListenAndServe(":"+port, r)
 }
