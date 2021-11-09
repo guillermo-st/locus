@@ -3,21 +3,57 @@ package chat
 import (
 	"encoding/json"
 	"log"
-	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
-type message struct {
+const (
+	TalkAction  = "talk"
+	JoinAction  = "join"
+	LeaveAction = "leave"
+)
+
+type Message struct {
+	Action   string
+	Room     string
 	username string
 	content  string
 }
 
+type MsgStream struct {
+	SentMsgs    chan Message
+	DoneSending chan bool
+}
+
+type Client struct {
+	RoomStreams map[string]*MsgStream
+}
+
 type Room struct {
-	Name     string `json:"name"`
-	upgrader websocket.Upgrader
-	msgs     chan message
-	users    map[*websocket.Conn]bool
+	Name  string `json:"name"`
+	msgs  chan Message
+	users map[*websocket.Conn]bool
+	sync.Mutex
+}
+
+func NewMsgStream() *MsgStream {
+	return &MsgStream{
+		make(chan Message),
+		make(chan bool),
+	}
+}
+
+func NewClient() *Client {
+	return &Client{make(map[string]*MsgStream)}
+}
+
+func NewRoom(name string) *Room {
+	return &Room{
+		Name:  name,
+		msgs:  make(chan Message),
+		users: make(map[*websocket.Conn]bool),
+	}
 }
 
 func (r *Room) MarshalJSON() ([]byte, error) {
@@ -32,14 +68,6 @@ func (r *Room) MarshalJSON() ([]byte, error) {
 
 }
 
-func NewRoom(name string) *Room {
-	return &Room{name,
-		websocket.Upgrader{},
-		make(chan message),
-		make(map[*websocket.Conn]bool),
-	}
-}
-
 func (room *Room) SendMsgs() {
 
 	for {
@@ -50,33 +78,38 @@ func (room *Room) SendMsgs() {
 			err := user.WriteJSON(msg)
 			if err != nil {
 				log.Printf("ERROR sending message to user %v: %v", user, err)
-				user.Close()
-				delete(room.users, user)
+				room.unregisterUser(user)
 			}
 		}
 	}
 }
 
-func (room *Room) RegisterUser(w http.ResponseWriter, r *http.Request) {
-
-	ws, err := room.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer ws.Close()
+func (room *Room) registerUser(ws *websocket.Conn) {
+	room.Lock()
+	defer room.Unlock()
 
 	room.users[ws] = true
+}
+
+func (room *Room) unregisterUser(ws *websocket.Conn) {
+	room.Lock()
+	defer room.Unlock()
+
+	room.users[ws] = false
+	delete(room.users, ws)
+}
+
+func (room *Room) ListenToStream(s *MsgStream, ws *websocket.Conn) {
+	room.registerUser(ws)
 
 	for {
-		var msg message
+		select {
+		case msg := <-s.SentMsgs:
+			room.msgs <- msg
 
-		err := ws.ReadJSON(&msg)
-		if err != nil {
-			log.Printf("ERROR receiving message from user %v", ws)
-			//TODO: write error to client
+		case <-s.DoneSending:
+			room.unregisterUser(ws)
+			return
 		}
-
-		room.msgs <- msg
 	}
-
 }
