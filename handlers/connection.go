@@ -38,7 +38,7 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	c := chat.NewClient()
+	c := chat.NewClient(ws)
 
 	for {
 		var msg chat.Message
@@ -49,22 +49,41 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		roomName := msg.Room
+		_, exists := conn.rooms[roomName]
 
-		switch msg.Action {
-		case chat.JoinAction:
-			stream := chat.NewMsgStream()
-			c.RoomStreams[roomName] = stream
-			go conn.rooms[roomName].ListenToStream(stream, ws)
+		if exists == false {
+			c.SendJSON(&chat.Message{
+				Action:     chat.ErrorAction,
+				Room:       roomName,
+				Username:   msg.Username,
+				Content:    "User trying to join non-existent room",
+				HTTPstatus: http.StatusBadRequest,
+			})
+		}
 
-		case chat.LeaveAction:
-			c.RoomStreams[roomName].DoneSending <- true
-			close(c.RoomStreams[roomName].DoneSending)
-			close(c.RoomStreams[roomName].SentMsgs)
-			delete(c.RoomStreams, roomName)
+		if exists {
+			switch msg.Action {
 
-		case chat.TalkAction:
-			c.RoomStreams[roomName].SentMsgs <- msg
+			case chat.JoinAction:
+				if !c.HasJoined(roomName) {
+					stream := chat.NewMsgStream()
+					c.RoomStreams[roomName] = stream
+					go conn.rooms[roomName].ListenToStream(stream, c)
+				}
+
+			case chat.LeaveAction:
+				if c.HasJoined(roomName) {
+					c.RoomStreams[roomName].DoneSending <- true
+					close(c.RoomStreams[roomName].DoneSending)
+					close(c.RoomStreams[roomName].SentMsgs)
+					delete(c.RoomStreams, roomName)
+				}
+
+			case chat.TalkAction:
+				if c.HasJoined(roomName) {
+					c.RoomStreams[roomName].SentMsgs <- msg
+				}
+			}
 		}
 	}
-
 }

@@ -2,23 +2,22 @@ package chat
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 const (
 	TalkAction  = "talk"
 	JoinAction  = "join"
 	LeaveAction = "leave"
+	ErrorAction = "error"
 )
 
 type Message struct {
-	Action   string
-	Room     string
-	username string
-	content  string
+	Action     string
+	Room       string
+	Username   string
+	Content    string
+	HTTPstatus int
 }
 
 type MsgStream struct {
@@ -26,14 +25,10 @@ type MsgStream struct {
 	DoneSending chan bool
 }
 
-type Client struct {
-	RoomStreams map[string]*MsgStream
-}
-
 type Room struct {
-	Name  string `json:"name"`
-	msgs  chan Message
-	users map[*websocket.Conn]bool
+	Name    string `json:"name"`
+	msgs    chan Message
+	clients map[*Client]bool
 	sync.Mutex
 }
 
@@ -44,15 +39,11 @@ func NewMsgStream() *MsgStream {
 	}
 }
 
-func NewClient() *Client {
-	return &Client{make(map[string]*MsgStream)}
-}
-
 func NewRoom(name string) *Room {
 	return &Room{
-		Name:  name,
-		msgs:  make(chan Message),
-		users: make(map[*websocket.Conn]bool),
+		Name:    name,
+		msgs:    make(chan Message),
+		clients: make(map[*Client]bool),
 	}
 }
 
@@ -63,7 +54,7 @@ func (r *Room) MarshalJSON() ([]byte, error) {
 		UserCount int `json:"count"`
 	}{
 		SimplifiedRoom: (*SimplifiedRoom)(r),
-		UserCount:      len(r.users),
+		UserCount:      len(r.clients),
 	})
 
 }
@@ -73,34 +64,33 @@ func (room *Room) SendMsgs() {
 	for {
 		msg := <-room.msgs
 
-		for user := range room.users {
+		for client := range room.clients {
 
-			err := user.WriteJSON(msg)
+			err := client.SendJSON(msg)
 			if err != nil {
-				log.Printf("ERROR sending message to user %v: %v", user, err)
-				room.unregisterUser(user)
+				room.unregisterUser(client)
 			}
 		}
 	}
 }
 
-func (room *Room) registerUser(ws *websocket.Conn) {
+func (room *Room) registerUser(c *Client) {
 	room.Lock()
 	defer room.Unlock()
 
-	room.users[ws] = true
+	room.clients[c] = true
 }
 
-func (room *Room) unregisterUser(ws *websocket.Conn) {
+func (room *Room) unregisterUser(c *Client) {
 	room.Lock()
 	defer room.Unlock()
 
-	room.users[ws] = false
-	delete(room.users, ws)
+	room.clients[c] = false
+	delete(room.clients, c)
 }
 
-func (room *Room) ListenToStream(s *MsgStream, ws *websocket.Conn) {
-	room.registerUser(ws)
+func (room *Room) ListenToStream(s *MsgStream, c *Client) {
+	room.registerUser(c)
 
 	for {
 		select {
@@ -108,7 +98,7 @@ func (room *Room) ListenToStream(s *MsgStream, ws *websocket.Conn) {
 			room.msgs <- msg
 
 		case <-s.DoneSending:
-			room.unregisterUser(ws)
+			room.unregisterUser(c)
 			return
 		}
 	}
