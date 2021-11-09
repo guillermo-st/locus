@@ -9,23 +9,26 @@ import (
 )
 
 type Rooms struct {
-	rooms map[string]*chat.Room
-	l     *log.Logger
+	c *chat.Chat
+	l *log.Logger
 }
 
 type RoomCreation struct {
 	Name string `json:"name"`
 }
 
-func NewRooms(r map[string]*chat.Room, l *log.Logger) *Rooms {
-	return &Rooms{r, l}
+func NewRooms(c *chat.Chat, l *log.Logger) *Rooms {
+	return &Rooms{c, l}
 }
 
 func (r *Rooms) GetRooms(w http.ResponseWriter, rq *http.Request) {
 
-	rl := make([]*chat.Room, 0, len(r.rooms))
+	rl := make([]*chat.Room, 0, len(r.c.Rooms))
 
-	for _, value := range r.rooms {
+	r.c.Lock()
+	defer r.c.Unlock()
+
+	for _, value := range r.c.Rooms {
 		rl = append(rl, value)
 	}
 
@@ -42,11 +45,13 @@ func (r *Rooms) CreateRoom(w http.ResponseWriter, rq *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 
-	room, exists := r.rooms[params.Name]
+	r.c.Lock()
+	defer r.c.Unlock()
 
+	room, exists := r.c.Rooms[params.Name]
 	if !exists {
 		room = chat.NewRoom(params.Name)
-		r.rooms[params.Name] = room
+		r.c.Rooms[params.Name] = room
 		go room.SendMsgs()
 	}
 }

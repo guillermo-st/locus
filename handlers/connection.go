@@ -10,17 +10,17 @@ import (
 )
 
 type Connection struct {
-	rooms    map[string]*chat.Room
+	chat     *chat.Chat
 	upgrader websocket.Upgrader
 	l        *log.Logger
 }
 
-func NewConnection(rooms map[string]*chat.Room, l *log.Logger) *Connection {
+func NewConnection(c *chat.Chat, l *log.Logger) *Connection {
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
-	return &Connection{rooms, upgrader, l}
+	return &Connection{c, upgrader, l}
 }
 
 func CheckChatOrigin(r *http.Request) bool {
@@ -38,7 +38,7 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	c := chat.NewClient(ws)
+	cl := chat.NewClient(ws)
 
 	for {
 		var msg chat.Message
@@ -49,10 +49,13 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		roomName := msg.Room
-		_, exists := conn.rooms[roomName]
+
+		conn.chat.Lock()
+		_, exists := conn.chat.Rooms[roomName]
+		conn.chat.Unlock()
 
 		if exists == false {
-			c.SendJSON(&chat.Message{
+			cl.SendJSON(&chat.Message{
 				Action:     chat.ErrorAction,
 				Room:       roomName,
 				Username:   msg.Username,
@@ -65,23 +68,25 @@ func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
 			switch msg.Action {
 
 			case chat.JoinAction:
-				if !c.HasJoined(roomName) {
+				if !cl.HasJoined(roomName) {
 					stream := chat.NewMsgStream()
-					c.RoomStreams[roomName] = stream
-					go conn.rooms[roomName].ListenToStream(stream, c)
+					cl.RoomStreams[roomName] = stream
+					conn.chat.Lock()
+					go conn.chat.Rooms[roomName].ListenToStream(stream, cl)
+					conn.chat.Unlock()
 				}
 
 			case chat.LeaveAction:
-				if c.HasJoined(roomName) {
-					c.RoomStreams[roomName].DoneSending <- true
-					close(c.RoomStreams[roomName].DoneSending)
-					close(c.RoomStreams[roomName].SentMsgs)
-					delete(c.RoomStreams, roomName)
+				if cl.HasJoined(roomName) {
+					cl.RoomStreams[roomName].DoneSending <- true
+					close(cl.RoomStreams[roomName].DoneSending)
+					close(cl.RoomStreams[roomName].SentMsgs)
+					delete(cl.RoomStreams, roomName)
 				}
 
 			case chat.TalkAction:
-				if c.HasJoined(roomName) {
-					c.RoomStreams[roomName].SentMsgs <- msg
+				if cl.HasJoined(roomName) {
+					cl.RoomStreams[roomName].SentMsgs <- msg
 				}
 			}
 		}

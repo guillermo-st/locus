@@ -32,10 +32,21 @@ type Room struct {
 	sync.Mutex
 }
 
+type Chat struct {
+	sync.Mutex
+	Rooms map[string]*Room
+}
+
 func NewMsgStream() *MsgStream {
 	return &MsgStream{
 		make(chan Message),
 		make(chan bool),
+	}
+}
+
+func NewChat() *Chat {
+	return &Chat{
+		Rooms: make(map[string]*Room),
 	}
 }
 
@@ -60,13 +71,12 @@ func (r *Room) MarshalJSON() ([]byte, error) {
 }
 
 func (room *Room) SendMsgs() {
-
 	for {
 		msg := <-room.msgs
 
 		for client := range room.clients {
 
-			err := client.SendJSON(msg)
+			err := client.SendJSON(&msg)
 			if err != nil {
 				room.unregisterUser(client)
 			}

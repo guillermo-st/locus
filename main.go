@@ -16,11 +16,11 @@ func main() {
 	l := log.New(os.Stdout, "locus", log.LstdFlags)
 	r := mux.NewRouter()
 
-	var rooms = make(map[string]*chat.Room)
+	var locusChat *chat.Chat = chat.NewChat()
 
 	//Create handlers
-	rh := handlers.NewRooms(rooms, l)
-	ch := handlers.NewConnection(rooms, l)
+	rh := handlers.NewRooms(locusChat, l)
+	ch := handlers.NewConnection(locusChat, l)
 
 	//Handle routes
 	r.HandleFunc("/rooms", rh.GetRooms).Methods("GET")
