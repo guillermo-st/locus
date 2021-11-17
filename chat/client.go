@@ -26,7 +26,8 @@ func (cl *Client) SendJSON(m *Message) error {
 
 	err := cl.ws.WriteJSON(m)
 	if err != nil {
-		log.Printf("ERROR sending message to user %v: %v", cl.ws, err)
+		log.Printf("ERROR sending message to user %v: %v", cl.ws.RemoteAddr(), err)
+		return err
 	}
 	return nil
 }
