@@ -1,5 +1,5 @@
 <template>
-		<button @click="onClick()" :style="{ background: color }" class='btn'>{{ label }}</button>
+		<button :style="{ background: color }" class='btn'>{{ label }}</button>
 </template>
 
 
@@ -10,11 +10,6 @@
 			label: String,
 			color: String
 		},
-		methods:{
-			onClick(){
-				console.log('click')
-			}
-		}
 	}
 </script>
 

@@ -1,7 +1,7 @@
 <template>
 	<div class='container'>
-		<Button label='Add Room' color="steelblue"/>
 		<Button @click="refresh()" label='Refresh' color="black"/>
+		<AddRoom @add-room="addRoom"/>
 		<div class='room-container'>
 			<div :key='room.name'  v-for='room in rooms'>
 			<Room :room="room"/>	
@@ -14,11 +14,12 @@
 <script>
 import Button from './Button';
 import Room from './Room';
+import AddRoom from './AddRoom';
 
 export default{
 	name: 'Rooms',
 	components:{
-		Button, Room
+		Button, Room, AddRoom
 	},
 	props:{
 		rooms: Array,
@@ -26,6 +27,9 @@ export default{
 	methods: {
 		refresh(){
 			this.$emit('refresh-rooms')
+		},
+		addRoom(room){
+			this.$emit('add-Room', room)
 		}
 	}
 

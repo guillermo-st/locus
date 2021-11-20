@@ -1,6 +1,6 @@
 <template>
 	<h1> Locus. </h1>
-	<Rooms :rooms="rooms" @refresh-rooms="getRooms()"/>
+	<Rooms :rooms="rooms" @refresh-rooms="getRooms()" @add-room="addRoom"/>
 </template>
 
 <script>
@@ -23,6 +23,20 @@ export default {
 			fetch('http://localhost:8000/rooms')
 				.then(response => response.json())
 				.then(data => (this.rooms = data))
+		},
+		addRoom(room){
+			fetch("http://localhost:8000/rooms", {
+				
+				mode: 'no-cors',
+			  	method: "POST",
+			  	headers: {
+			   		'Accept': 'application/json',
+			    	'Content-Type': 'application/json'
+			  	},
+			
+			  	body: JSON.stringify(room)
+			})
+			this.getRooms()
 		}
 	},
  	created() {

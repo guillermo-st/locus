@@ -24,7 +24,13 @@
 		},
 		methods:{
 			onClick(){
-				this.joined = !this.joined	
+				if(this.joined && confirm(`Are you sure you want to leave the room: ${this.room.name}?`)){
+					this.joined = !this.joined	
+				}
+				else{
+					this.joined = !this.joined	
+				}
+
 			}
 		}
 	}
