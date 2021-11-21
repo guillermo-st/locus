@@ -25,10 +25,13 @@
 		methods:{
 			onClick(){
 				if(this.joined && confirm(`Are you sure you want to leave the room: ${this.room.name}?`)){
-					this.joined = !this.joined	
+					this.$emit('leave-room', this.room.name);	
+					this.joined = false;	
+
 				}
 				else{
-					this.joined = !this.joined	
+					this.$emit('join-room', this.room.name);
+					this.joined = true;	
 				}
 
 			}

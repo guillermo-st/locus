@@ -1,6 +1,10 @@
 <template>
 	<h1> Locus. </h1>
-	<Rooms :rooms="rooms" @refresh-rooms="getRooms()" @add-room="addRoom"/>
+	<Rooms :rooms="rooms" 
+		@refresh-rooms="getRooms()" 
+		@add-room="addRoom" 
+		@join-room="joinRoom"
+		@leave-room="leaveRoom"/>
 </template>
 
 <script>
@@ -15,14 +19,15 @@ export default {
   	},
   	data(){
 		return{
-			rooms: null
+			rooms: null,
+			wsConn: null
 		}
   	},
 	methods: {
 		getRooms(){
 			fetch('http://localhost:8000/rooms')
 				.then(response => response.json())
-				.then(data => (this.rooms = data))
+				.then(data => (this.rooms = data));
 		},
 		addRoom(room){
 			fetch("http://localhost:8000/rooms", {
@@ -35,12 +40,38 @@ export default {
 			  	},
 			
 			  	body: JSON.stringify(room)
-			})
-			this.getRooms()
+			});
+			this.getRooms();
+		},
+		newWsConn(){
+			this.wsConn = new WebSocket("ws://localhost:8000/ws");
+	//		this.wsConn.onmessage = this.processMessage(ev);
+		},
+		processMessage(ev){
+			console.log(ev.data);
+		},
+		joinRoom(roomName){
+			const Msg = {
+				Action: 'join',
+				Room: roomName,
+				Username: 'Guille',
+			}
+			this.wsConn.send(JSON.stringify(Msg));
+			this.getRooms();
+		},
+		leaveRoom(roomName){
+			const Msg = {
+				Action: 'leave',
+				Room: roomName,
+				Username: 'Guille',
+			}
+			this.wsConn.send(JSON.stringify(Msg));
+			this.getRooms();
 		}
 	},
  	created() {
-		this.getRooms()
+		this.getRooms();
+		this.newWsConn();
   	}
 }
 </script>

@@ -4,7 +4,7 @@
 		<AddRoom @add-room="addRoom"/>
 		<div class='room-container'>
 			<div :key='room.name'  v-for='room in rooms'>
-			<Room :room="room"/>	
+			<Room @join-room="joinRoom" @leave-room="leaveRoom" :room="room"/>	
 			</div>
 		</div>
 	</div>
@@ -30,6 +30,12 @@ export default{
 		},
 		addRoom(room){
 			this.$emit('add-Room', room)
+		},
+		joinRoom(roomName){
+			this.$emit('join-room', roomName);
+		},
+		leaveRoom(roomName){
+			this.$emit('leave-room', roomName);
 		}
 	}
 
