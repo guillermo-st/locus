@@ -29,6 +29,7 @@ func CheckChatOrigin(r *http.Request) bool {
 }
 
 func (conn *Connection) ListenToWs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	conn.upgrader.CheckOrigin = CheckChatOrigin
 

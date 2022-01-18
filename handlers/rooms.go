@@ -22,7 +22,7 @@ func NewRooms(c *chat.Chat, l *log.Logger) *Rooms {
 }
 
 func (r *Rooms) GetRooms(w http.ResponseWriter, rq *http.Request) {
-
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	rl := make([]*chat.Room, 0, len(r.c.Rooms))
 
 	r.c.Lock()
@@ -37,6 +37,7 @@ func (r *Rooms) GetRooms(w http.ResponseWriter, rq *http.Request) {
 }
 
 func (r *Rooms) CreateRoom(w http.ResponseWriter, rq *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	var params RoomCreation
 
 	err := json.NewDecoder(rq.Body).Decode(&params)
